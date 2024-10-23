@@ -8,11 +8,11 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 
-<body>
+<body class="bg-secondary">
     <div class="container mt-5">
         <div class="row">
             <div class="col-md-4">
-                <h5>Users</h5>
+                <h5>Users {{ Auth::user()->name }}</h5>
                 <ul class="list-group">
                     @foreach ($users as $user)
                         <li class="list-group-item">
@@ -24,6 +24,9 @@
 
             <div class="col-md-8">
                 @if (isset($chat))
+                    @php
+                        // dd($chat->toUser->name);
+                    @endphp
                     <h5>Chat with {{ $chat->toUser->name }}</h5>
                     <div id="chatBox" class="border p-3 mb-3" style="height: 300px; overflow-y: scroll;">
                         @foreach ($messages as $message)
@@ -55,27 +58,38 @@
         <script>
             var socket = io('http://localhost:3000');
 
+            // Foydalanuvchini chat kanaliga ulash
+            socket.emit('joinChat', {{ $chat->id }}); // Foydalanuvchini chatga ulash
+
             // Yangi xabar kelganda chat oynasiga qo'shish
             socket.on('newMessage', function(message) {
-                var currentUser = {{ auth()->id() }};
-                var sender = (message.sender_id == currentUser) ? 'You' : message.sender_id;
+                if (message.chat_id == {{ $chat->id }}) { // Faqat hozirgi chatga tegishli xabarlar
+                    var currentUser = {{ auth()->id() }};
+                    var sender = (message.sender_id == currentUser) ? 'You' : message.name;
 
-                var chatBox = document.getElementById('chatBox');
-                chatBox.innerHTML += `<p><strong>${sender}:</strong> ${message.text}</p>`;
-                chatBox.scrollTop = chatBox.scrollHeight; // Scrollni oxiriga olib borish
+                    var chatBox = document.getElementById('chatBox');
+                    chatBox.innerHTML += `<p><strong>${sender}:</strong> ${message.text}</p>`;
+                    chatBox.scrollTop = chatBox.scrollHeight; // Scrollni oxiriga olib borish
+                }
             });
+
 
             // Oldingi xabarlarni olish
             socket.on('previousMessages', function(messages) {
                 var chatBox = document.getElementById('chatBox');
+                chatBox.innerHTML = ''; // Chat oynasini tozalaymiz
+
                 messages.forEach(function(message) {
-                    var sender = (message.sender_id == {{ auth()->id() }}) ? 'You' : message.sender_id;
-                    chatBox.innerHTML += `<p><strong>${sender}:</strong> ${message.text}</p>`;
+                    if (message.chat_id == {{ $chat->id }}) { // Faqat hozirgi chatga tegishli xabarlar
+                        var sender = (message.sender_id == {{ auth()->id() }}) ? 'You' : message.name;
+                        chatBox.innerHTML += `<p><strong>${sender}:</strong> ${message.text}</p>`;
+                    }
                 });
                 chatBox.scrollTop = chatBox.scrollHeight; // Scrollni oxiriga olib borish
             });
         </script>
     @endif
+
 
 </body>
 

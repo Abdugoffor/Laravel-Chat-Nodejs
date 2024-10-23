@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use App\Models\Chat;
-use App\Models\Message;
+use App\Models\User;
+use GuzzleHttp\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use GuzzleHttp\Client;
 
 class ChatController extends Controller
 {
@@ -21,50 +20,53 @@ class ChatController extends Controller
     // Yangi chat yaratish yoki mavjud chatni olish
     public function startChat($userId)
     {
-        $chat = Chat::firstOrCreate([
-            'from_id' => Auth::id(),
-            'to_id' => $userId
-        ]);
+        $authId = Auth::id();
 
-        // Foydalanuvchilar ro'yxatini olish
+        $chat = Chat::where(function ($query) use ($authId, $userId) {
+            $query->where('from_id', $authId)
+                ->where('to_id', $userId);
+        })->orWhere(function ($query) use ($authId, $userId) {
+            $query->where('from_id', $userId)
+                ->where('to_id', $authId);
+        })->first();
+
+        if (!$chat) {
+            $chat = Chat::create([
+                'from_id' => $authId,
+                'to_id' => $userId,
+            ]);
+        }
+
         $users = User::where('id', '!=', Auth::id())->get();
 
-        // Faqat ushbu chatga tegishli xabarlarni olish
-        $messages = $chat->messages()->where(function ($query) use ($userId) {
-            $query->where('sender_id', Auth::id())
-                ->orWhere('sender_id', $userId);
-        })->get();
+        $messages = $chat->messages();
 
         return view('chat.show', compact('chat', 'users', 'messages'));
     }
 
-
-    // Xabar yuborish
     public function sendMessage(Request $request, $chatId)
     {
         $chat = Chat::findOrFail($chatId);
 
-        // Xabarni bazaga saqlash
         $message = $chat->messages()->create([
             'text' => $request->text,
             'sender_id' => Auth::id(),
         ]);
-
         // Node.js serveriga HTTP so'rov yuborish
         $client = new Client();
-        // dd($client, $chatId, $request->text, Auth::id());
+        
         $client->post('http://localhost:3000/send-message', [
             'json' => [
-                'chat_id' => $chatId,
-                'sender_id' => Auth::id(),
-                'text' => $request->text,
-            ]
+                'name' => Auth::user()->name,
+                'chat_id' => $chatId, // Chatning ID si yuborilyapti
+                'sender_id' => Auth::id(), // Yuboruvchi ID si
+                'text' => $request->text, // Xabar matni
+            ],
         ]);
 
         return redirect()->back();
     }
 
-    // Chatdagi xabarlarni ko'rsatish
     public function show($chatId)
     {
         $chat = Chat::findOrFail($chatId);
