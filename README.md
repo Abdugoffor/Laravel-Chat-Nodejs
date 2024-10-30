@@ -17,4 +17,4 @@ php artisan serve
 cd nodejs-chat
 ```
 ```
-npm server.js
+node server.js
